@@ -1,2 +1,1 @@
-include ':app', ':HelloMoon', ':Test'
-include ':calculator'
+include ':app', ':HelloMoon'
