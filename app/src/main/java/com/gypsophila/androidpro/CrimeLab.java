@@ -22,8 +22,13 @@ public class CrimeLab {
     private List<Crime> mCrimes;
     private CrimeLab(Context ctx) {
         mAppContext = ctx;
-        mCrimes = new ArrayList<>();
-        mSerializer = new CriminalIntentJSONSerializer(FILENAME,mAppContext);
+        mSerializer = new CriminalIntentJSONSerializer(FILENAME, mAppContext);
+        try {
+            mCrimes = mSerializer.loadCrimes();
+        } catch (Exception e) {
+            mCrimes = new ArrayList<>();
+            e.printStackTrace();
+        }
     }
 
     public static CrimeLab getInstance(Context ctx) {
@@ -55,5 +60,13 @@ public class CrimeLab {
             Log.e(TAG, "Error saving crimes: ", e);
             return false;
         }
+    }
+
+    public void addCrime(Crime c) {
+        mCrimes.add(c);
+    }
+
+    public void deleteCrime(Crime c) {
+        mCrimes.remove(c);
     }
 }
