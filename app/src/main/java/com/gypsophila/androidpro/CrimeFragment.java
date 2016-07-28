@@ -3,6 +3,7 @@ package com.gypsophila.androidpro;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.BitmapDrawable;
 import android.hardware.Camera;
 import android.os.Build;
 import android.os.Bundle;
@@ -25,6 +26,7 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.ListView;
 
 import java.text.SimpleDateFormat;
@@ -35,6 +37,7 @@ import java.util.UUID;
  * Created by Gypsophila on 2016/6/10.
  */
 public class CrimeFragment extends Fragment {
+    private static final String TAG = "CrimeFragment";
     private Crime mCrime;
     private EditText mTitleField;
     private Button mDateButton;
@@ -42,8 +45,10 @@ public class CrimeFragment extends Fragment {
     private static final String DIALOG_DATE = "date";
     private static final String DIALOG_TIME = "time";
     private static final int REQUEST_CODE = 0;
+    private static final int REQUEST_PHOTO = 1;
     private Button mTimeButton;
     private ImageButton mPhotoButton;
+    private ImageView mPhotoView;
 
     public static CrimeFragment newInstance(UUID crimeId) {
         Bundle args = new Bundle();
@@ -118,9 +123,11 @@ public class CrimeFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(getActivity(), CrimeCameraActivity.class);
-                startActivity(intent);
+//                startActivity(intent);
+                startActivityForResult(intent,REQUEST_PHOTO);
             }
         });
+        mPhotoView = (ImageView) view.findViewById(R.id.crime_imageView);
         PackageManager pm = getActivity().getPackageManager();
         boolean hasCamera = pm.hasSystemFeature(PackageManager.FEATURE_CAMERA) || pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_FRONT)
                 || Camera.getNumberOfCameras() > 0;
@@ -138,6 +145,16 @@ public class CrimeFragment extends Fragment {
             mCrime.setmDate(date);
             SimpleDateFormat sdf = new SimpleDateFormat("EE,yyyy-MM-dd");
             mDateButton.setText(sdf.format(mCrime.getmDate()));
+        }
+        if (requestCode == REQUEST_PHOTO) {
+            String filename = data.getStringExtra(CrimeCameraFragment.EXTRA_PHOTO_FILENAME);
+            if (filename != null) {
+//                Log.i(TAG, "filename:" + filename);
+                Photo photo = new Photo(filename);
+                mCrime.setmPhoto(photo);
+//                Log.i(TAG, "Crime:" + mCrime.getmTitle() + " has a photo");
+                showPhoto();
+            }
         }
     }
 
@@ -165,5 +182,27 @@ public class CrimeFragment extends Fragment {
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        showPhoto();
+    }
+
+    private void showPhoto() {
+        Photo p = mCrime.getmPhoto();
+        BitmapDrawable b = null;
+        if (p != null) {
+            String path = getActivity().getFileStreamPath(p.getmFilename()).getAbsolutePath();
+            b = PictureUtils.getScaledDrawable(getActivity(), path);
+        }
+        mPhotoView.setImageDrawable(b);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        PictureUtils.cleanImageView(mPhotoView);
     }
 }
