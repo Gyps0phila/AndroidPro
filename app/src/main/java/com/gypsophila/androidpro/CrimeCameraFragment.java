@@ -4,20 +4,22 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.hardware.Camera;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
-import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.List;
@@ -29,11 +31,13 @@ import java.util.UUID;
 public class CrimeCameraFragment extends Fragment {
 
     private static final String TAG = "CrimeCameraFragment";
-    public static final String EXTRA_PHOTO_FILENAME = "com.gypsophila.androidpro,photo_filename";
+    public static final String EXTRA_PHOTO_FILENAME = "com.gypsophila.androidpro.photo_filename";
+    public static final String EXTRA_PHOTO_ROTATE_DEGREES = "com.gypsophila.androidpro.photo_rotate_degrees";
     private Button mTakePictureButton;
     private SurfaceView mSurfaceView;
     private Camera mCamera;
     private View mProgressContainer;
+    private float mPhotoRotateDegrees;
     private Camera.ShutterCallback mShutterCallback = new Camera.ShutterCallback() {
         @Override
         public void onShutter() {
@@ -69,6 +73,7 @@ public class CrimeCameraFragment extends Fragment {
 //                Log.i(TAG, "JPEG saved at " + filename);
                 Intent i = new Intent();
                 i.putExtra(EXTRA_PHOTO_FILENAME, filename);
+                i.putExtra(EXTRA_PHOTO_ROTATE_DEGREES, mPhotoRotateDegrees);
                 getActivity().setResult(Activity.RESULT_OK, i);
             } else {
                 getActivity().setResult(Activity.RESULT_CANCELED);
@@ -76,6 +81,7 @@ public class CrimeCameraFragment extends Fragment {
             getActivity().finish();
         }
     };
+    private SensorManager sensorManager;
 
     @Nullable
     @Override
@@ -91,6 +97,15 @@ public class CrimeCameraFragment extends Fragment {
                 }
             }
         });
+        sensorManager = (SensorManager) getActivity().getSystemService(Context.SENSOR_SERVICE);
+        Sensor magneticSensor = sensorManager.getDefaultSensor(Sensor.
+                TYPE_MAGNETIC_FIELD);
+        Sensor accelerometerSensor = sensorManager.getDefaultSensor(
+                Sensor.TYPE_ACCELEROMETER);
+        sensorManager.registerListener(listener, magneticSensor,
+                SensorManager.SENSOR_DELAY_GAME);
+        sensorManager.registerListener(listener, accelerometerSensor,
+                SensorManager.SENSOR_DELAY_GAME);
         mProgressContainer = view.findViewById(R.id.crime_camera_progressContainer);
         mProgressContainer.setVisibility(View.INVISIBLE);
         SurfaceHolder holder = mSurfaceView.getHolder();
@@ -137,6 +152,34 @@ public class CrimeCameraFragment extends Fragment {
         });
         return view;
     }
+
+    private SensorEventListener listener = new SensorEventListener() {
+
+        float[] accelerometerValues = new float[3];
+        float[] magneticValues = new float[3];
+
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            //判断当前是地磁传感器还是加速度传感器
+            if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+                accelerometerValues = event.values.clone();
+            } else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
+                magneticValues = event.values.clone();
+            }
+            float[] R = new float[9];
+            float[] values = new float[3];
+            SensorManager.getRotationMatrix(R, null, accelerometerValues, magneticValues);
+            SensorManager.getOrientation(R, values);
+            //将旋转角度赋予具体photo
+            mPhotoRotateDegrees = -(float) Math.toDegrees(values[0]);
+
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+        }
+    };
 
     private Camera.Size getSupprortedSize(List<Camera.Size> sizes, int w, int h) {
         Camera.Size bestSize = sizes.get(0);

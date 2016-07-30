@@ -15,4 +15,5 @@
     <string name="delete_crime">Delete</string>
     <string name="empty_crime_tip">No crime,please click \'New Crime\'</string>
     <string name="take">Take!</string>
+    <string name="delete_photo">Delete</string>
 </resources>

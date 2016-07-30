@@ -5,16 +5,14 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.BitmapDrawable;
 import android.hardware.Camera;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
-import android.support.v4.app.ListFragment;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.text.format.DateFormat;
 import android.util.Log;
+import android.view.ContextMenu;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -27,8 +25,8 @@ import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.ListView;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.UUID;
@@ -49,6 +47,7 @@ public class CrimeFragment extends Fragment {
     private Button mTimeButton;
     private ImageButton mPhotoButton;
     private ImageView mPhotoView;
+    private static final String DIALOG_IMAGE = "image";
 
     public static CrimeFragment newInstance(UUID crimeId) {
         Bundle args = new Bundle();
@@ -124,10 +123,21 @@ public class CrimeFragment extends Fragment {
             public void onClick(View v) {
                 Intent intent = new Intent(getActivity(), CrimeCameraActivity.class);
 //                startActivity(intent);
-                startActivityForResult(intent,REQUEST_PHOTO);
+                startActivityForResult(intent, REQUEST_PHOTO);
             }
         });
         mPhotoView = (ImageView) view.findViewById(R.id.crime_imageView);
+        registerForContextMenu(mPhotoView);
+        mPhotoView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Photo p = mCrime.getmPhoto();
+                if (p == null) return;
+                FragmentManager fm = getActivity().getSupportFragmentManager();
+                String path = getActivity().getFileStreamPath(p.getmFilename()).getAbsolutePath();
+                ImageFragment.newInstance(path, p.getmRotateDegrees()).show(fm, DIALOG_IMAGE);
+            }
+        });
         PackageManager pm = getActivity().getPackageManager();
         boolean hasCamera = pm.hasSystemFeature(PackageManager.FEATURE_CAMERA) || pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_FRONT)
                 || Camera.getNumberOfCameras() > 0;
@@ -148,9 +158,17 @@ public class CrimeFragment extends Fragment {
         }
         if (requestCode == REQUEST_PHOTO) {
             String filename = data.getStringExtra(CrimeCameraFragment.EXTRA_PHOTO_FILENAME);
+            float degrees = data.getFloatExtra(CrimeCameraFragment.EXTRA_PHOTO_ROTATE_DEGREES, 0);
             if (filename != null) {
 //                Log.i(TAG, "filename:" + filename);
-                Photo photo = new Photo(filename);
+                Photo photo = new Photo(filename, degrees);
+                Photo oldPhoto = mCrime.getmPhoto();
+                if (oldPhoto != null) {
+                    File photoFile = new File(getActivity().getFileStreamPath(oldPhoto.getmFilename()).getAbsolutePath());
+                    if (photoFile.isFile() && photoFile.exists()) {
+                        photoFile.delete();
+                    }
+                }
                 mCrime.setmPhoto(photo);
 //                Log.i(TAG, "Crime:" + mCrime.getmTitle() + " has a photo");
                 showPhoto();
@@ -167,7 +185,7 @@ public class CrimeFragment extends Fragment {
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         super.onCreateOptionsMenu(menu, inflater);
-        inflater.inflate(R.menu.fragment_crime_menu,menu);
+        inflater.inflate(R.menu.fragment_crime_imageview_menu, menu);
     }
 
     @Override
@@ -195,7 +213,7 @@ public class CrimeFragment extends Fragment {
         BitmapDrawable b = null;
         if (p != null) {
             String path = getActivity().getFileStreamPath(p.getmFilename()).getAbsolutePath();
-            b = PictureUtils.getScaledDrawable(getActivity(), path);
+            b = PictureUtils.getScaledDrawable(getActivity(), path, p.getmRotateDegrees());
         }
         mPhotoView.setImageDrawable(b);
     }
@@ -204,5 +222,35 @@ public class CrimeFragment extends Fragment {
     public void onStop() {
         super.onStop();
         PictureUtils.cleanImageView(mPhotoView);
+    }
+
+    @Override
+    public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
+        switch (v.getId()) {
+            case R.id.crime_imageView:
+                getActivity().getMenuInflater().inflate(R.menu.fragment_crime_imageview_menu, menu);
+                break;
+        }
+    }
+
+    @Override
+    public boolean onContextItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menu_item_delete_photo:
+                deletePhoto();
+                return true;
+        }
+        return super.onContextItemSelected(item);
+    }
+
+    private void deletePhoto() {
+        Photo p = mCrime.getmPhoto();
+        if (null == p) return;
+        mPhotoView.setImageDrawable(null);
+        File photoFile = new File(getActivity().getFileStreamPath(p.getmFilename()).getAbsolutePath());
+        if (photoFile.isFile() && photoFile.exists()) {
+            photoFile.delete();
+            mCrime.setmPhoto(null);
+        }
     }
 }
